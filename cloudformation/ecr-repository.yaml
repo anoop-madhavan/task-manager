@@ -1,0 +1,52 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECR Repository for Task Manager container images
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+
+  AppName:
+    Type: String
+    Default: task-manager
+
+Resources:
+  ECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref AppName
+      ImageTagMutability: MUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [{
+              "rulePriority": 1,
+              "description": "Keep last 10 images",
+              "selection": {
+                "tagStatus": "any",
+                "countType": "imageCountMoreThan",
+                "countNumber": 10
+              },
+              "action": {"type": "expire"}
+            }]
+          }
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-${AppName}-ecr'
+
+Outputs:
+  RepositoryName:
+    Value: !Ref ECRRepository
+    Export:
+      Name: !Sub '${Environment}-${AppName}-ecr-repo-name'
+
+  RepositoryUri:
+    Value: !GetAtt ECRRepository.RepositoryUri
+    Export:
+      Name: !Sub '${Environment}-${AppName}-ecr-repo-uri'
+

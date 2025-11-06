@@ -1,0 +1,142 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Security Groups for Task Manager ALB and ECS
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+
+  AppName:
+    Type: String
+    Default: task-manager
+
+Resources:
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${Environment}-${AppName}-alb-sg'
+      GroupDescription: ALB security group
+      VpcId:
+        Fn::ImportValue: !Sub '${Environment}-vpc-id'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-${AppName}-alb-sg'
+
+  BackendAPISecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${Environment}-${AppName}-backend-api-sg'
+      GroupDescription: Backend API security group
+      VpcId:
+        Fn::ImportValue: !Sub '${Environment}-vpc-id'
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-${AppName}-backend-api-sg'
+
+  BackendWorkerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${Environment}-${AppName}-backend-worker-sg'
+      GroupDescription: Backend Worker security group
+      VpcId:
+        Fn::ImportValue: !Sub '${Environment}-vpc-id'
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-${AppName}-backend-worker-sg'
+
+  FrontendSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${Environment}-${AppName}-frontend-sg'
+      GroupDescription: Frontend security group
+      VpcId:
+        Fn::ImportValue: !Sub '${Environment}-vpc-id'
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-${AppName}-frontend-sg'
+
+  BackendAPIIngressFromALB:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref BackendAPISecurityGroup
+      IpProtocol: tcp
+      FromPort: 3001
+      ToPort: 3001
+      SourceSecurityGroupId: !Ref ALBSecurityGroup
+
+  BackendWorkerIngressFromBackendAPI:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref BackendWorkerSecurityGroup
+      IpProtocol: tcp
+      FromPort: 3001
+      ToPort: 3001
+      SourceSecurityGroupId: !Ref BackendAPISecurityGroup
+
+  FrontendIngressFromALB:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref FrontendSecurityGroup
+      IpProtocol: tcp
+      FromPort: 3000
+      ToPort: 3000
+      SourceSecurityGroupId: !Ref ALBSecurityGroup
+
+  ALBToBackendAPIOutbound:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref ALBSecurityGroup
+      IpProtocol: tcp
+      FromPort: 3001
+      ToPort: 3001
+      DestinationSecurityGroupId: !Ref BackendAPISecurityGroup
+
+  ALBToFrontendOutbound:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref ALBSecurityGroup
+      IpProtocol: tcp
+      FromPort: 3000
+      ToPort: 3000
+      DestinationSecurityGroupId: !Ref FrontendSecurityGroup
+
+Outputs:
+  ALBSecurityGroupId:
+    Value: !Ref ALBSecurityGroup
+    Export:
+      Name: !Sub '${Environment}-${AppName}-alb-sg-id'
+
+  BackendAPISecurityGroupId:
+    Value: !Ref BackendAPISecurityGroup
+    Export:
+      Name: !Sub '${Environment}-${AppName}-backend-api-sg-id'
+
+  BackendWorkerSecurityGroupId:
+    Value: !Ref BackendWorkerSecurityGroup
+    Export:
+      Name: !Sub '${Environment}-${AppName}-backend-worker-sg-id'
+
+  FrontendSecurityGroupId:
+    Value: !Ref FrontendSecurityGroup
+    Export:
+      Name: !Sub '${Environment}-${AppName}-frontend-sg-id'
+

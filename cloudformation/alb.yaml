@@ -1,0 +1,108 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Application Load Balancer for Task Manager
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+
+  AppName:
+    Type: String
+    Default: task-manager
+
+Resources:
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub '${Environment}-${AppName}-alb'
+      Type: application
+      Scheme: internet-facing
+      Subnets:
+        - Fn::ImportValue: !Sub '${Environment}-public-subnet-1-id'
+        - Fn::ImportValue: !Sub '${Environment}-public-subnet-2-id'
+      SecurityGroups:
+        - Fn::ImportValue: !Sub '${Environment}-${AppName}-alb-sg-id'
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-${AppName}-alb'
+
+  BackendAPITargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${Environment}-${AppName}-api-tg'
+      Port: 3001
+      Protocol: HTTP
+      VpcId:
+        Fn::ImportValue: !Sub '${Environment}-vpc-id'
+      TargetType: ip
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-${AppName}-api-tg'
+
+  FrontendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${Environment}-${AppName}-frontend-tg'
+      Port: 3000
+      Protocol: HTTP
+      VpcId:
+        Fn::ImportValue: !Sub '${Environment}-vpc-id'
+      TargetType: ip
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-${AppName}-frontend-tg'
+
+  HTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref FrontendTargetGroup
+
+  BackendAPIListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HTTPListener
+      Priority: 1
+      Conditions:
+        - Field: path-pattern
+          Values: ['/api/*', '/health']
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref BackendAPITargetGroup
+
+Outputs:
+  LoadBalancerDNS:
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+    Export:
+      Name: !Sub '${Environment}-${AppName}-alb-dns'
+
+  LoadBalancerArn:
+    Value: !Ref ApplicationLoadBalancer
+    Export:
+      Name: !Sub '${Environment}-${AppName}-alb-arn'
+
+  BackendAPITargetGroupArn:
+    Value: !Ref BackendAPITargetGroup
+    Export:
+      Name: !Sub '${Environment}-${AppName}-api-tg-arn'
+
+  FrontendTargetGroupArn:
+    Value: !Ref FrontendTargetGroup
+    Export:
+      Name: !Sub '${Environment}-${AppName}-frontend-tg-arn'
+

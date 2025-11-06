@@ -1,0 +1,56 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECS Service for Backend API
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+
+  AppName:
+    Type: String
+    Default: task-manager
+
+  DesiredCount:
+    Type: Number
+    Default: 2
+    MinValue: 1
+
+Resources:
+  ECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub '${Environment}-${AppName}-backend-api'
+      Cluster:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-cluster-name'
+      TaskDefinition:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-backend-api-task-arn'
+      DesiredCount: !Ref DesiredCount
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - Fn::ImportValue: !Sub '${Environment}-private-subnet-1-id'
+            - Fn::ImportValue: !Sub '${Environment}-private-subnet-2-id'
+          SecurityGroups:
+            - Fn::ImportValue: !Sub '${Environment}-${AppName}-backend-api-sg-id'
+      LoadBalancers:
+        - ContainerName: backend-api
+          ContainerPort: 3001
+          TargetGroupArn:
+            Fn::ImportValue: !Sub '${Environment}-${AppName}-api-tg-arn'
+      HealthCheckGracePeriodSeconds: 60
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-${AppName}-backend-api-service'
+
+Outputs:
+  ServiceName:
+    Value: !GetAtt ECSService.Name
+    Export:
+      Name: !Sub '${Environment}-${AppName}-backend-api-service-name'
+
