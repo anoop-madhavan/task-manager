@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  backend-api:
+    build: ./backend-api
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=development
+    volumes:
+      - ./backend-api:/app
+      - /app/node_modules
+    networks:
+      - task-manager-network
+
+  backend-worker:
+    build: ./backend-worker
+    environment:
+      - NODE_ENV=development
+      - API_URL=http://backend-api:3001
+    volumes:
+      - ./backend-worker:/app
+      - /app/node_modules
+    depends_on:
+      - backend-api
+    networks:
+      - task-manager-network
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:3001
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend-api
+    networks:
+      - task-manager-network
+
+networks:
+  task-manager-network:
+    driver: bridge
+

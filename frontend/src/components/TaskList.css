@@ -1,0 +1,26 @@
+.task-list-container {
+  margin-top: 30px;
+}
+
+.task-list-container h2 {
+  margin-bottom: 20px;
+  color: #495057;
+  font-size: 1.5rem;
+}
+
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #6c757d;
+  font-size: 1.1rem;
+  background: #f8f9fa;
+  border-radius: 15px;
+  border: 2px dashed #dee2e6;
+}
+

@@ -1,0 +1,167 @@
+.task-item {
+  background: white;
+  border: 2px solid #e9ecef;
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.3s;
+}
+
+.task-item:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.task-item.deleting {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.task-item.status-completed {
+  background: #f0f9ff;
+  border-color: #4ade80;
+}
+
+.task-item.status-in-progress {
+  background: #fffbeb;
+  border-color: #fbbf24;
+}
+
+.task-item.status-pending {
+  background: white;
+  border-color: #e9ecef;
+}
+
+.task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.task-title-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.task-title {
+  font-size: 1.2rem;
+  color: #212529;
+  margin: 0;
+}
+
+.priority-badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.priority-high {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.priority-medium {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.priority-low {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.delete-btn {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 5px;
+  opacity: 0.6;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.delete-btn:hover:not(:disabled) {
+  opacity: 1;
+  transform: scale(1.2);
+}
+
+.delete-btn:disabled {
+  cursor: not-allowed;
+}
+
+.task-description {
+  color: #6c757d;
+  margin: 10px 0;
+  line-height: 1.5;
+}
+
+.task-footer {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #e9ecef;
+}
+
+.status-buttons {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.status-btn {
+  padding: 6px 12px;
+  border: 2px solid #dee2e6;
+  background: white;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.status-btn:hover:not(:disabled) {
+  border-color: #667eea;
+  background: #f8f9fa;
+}
+
+.status-btn.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: #667eea;
+  font-weight: 600;
+}
+
+.status-btn:disabled {
+  cursor: not-allowed;
+}
+
+.task-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.task-date {
+  font-size: 0.8rem;
+  color: #6c757d;
+}
+
+@media (max-width: 768px) {
+  .task-title-section {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
+
+  .status-buttons {
+    flex-direction: column;
+  }
+
+  .status-btn {
+    width: 100%;
+  }
+}
+
