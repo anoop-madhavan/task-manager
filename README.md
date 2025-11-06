@@ -24,10 +24,17 @@ All services communicate over a Docker network, and data is stored in-memory (no
 
 ## 📋 Prerequisites
 
+### Local Development
 - Docker (version 20.10 or higher)
 - Docker Compose (version 2.0 or higher)
 
+### AWS Deployment
+- AWS CLI configured
+- AWS account with appropriate permissions
+
 ## 🛠️ Installation & Setup
+
+### Local Development
 
 1. **Clone or navigate to the project directory:**
    ```bash
@@ -43,6 +50,24 @@ All services communicate over a Docker network, and data is stored in-memory (no
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:3001
    - API Health Check: http://localhost:3001/health
+
+### AWS ECS Deployment
+
+Deploy to AWS ECS Fargate:
+
+```bash
+cd cloudformation
+
+# 1. Build and push images to ECR
+./build-and-push.sh latest us-east-1
+
+# 2. Deploy infrastructure
+./deploy-all.sh dev us-east-1
+
+# 3. Access via ALB DNS (shown after deployment)
+```
+
+See [cloudformation/README.md](cloudformation/README.md) for detailed deployment instructions.
 
 ## 🎮 Usage
 
