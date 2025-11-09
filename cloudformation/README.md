@@ -256,7 +256,20 @@ aws ecs update-service \
 
 To configure HTTPS with your custom domain (e.g., `freeinterestcal.com`):
 
-See **[HTTPS_SETUP.md](HTTPS_SETUP.md)** for complete step-by-step guide including:
+### Option 1: AWS CLI (Automated)
+See **[HTTPS_SETUP.md](HTTPS_SETUP.md)** for CLI-based setup:
+- Automated with bash commands
+- Fast and repeatable
+- Best for production deployments
+
+### Option 2: AWS Console (GUI - Learning)
+See **[HTTPS_SETUP_GUI.md](HTTPS_SETUP_GUI.md)** for GUI-based setup:
+- Step-by-step with screenshots descriptions
+- Understand each AWS service
+- Best for learning and first-time setup
+- Includes troubleshooting guide
+
+Both guides cover:
 - ACM certificate request and validation
 - HTTPS listener configuration
 - Route 53 DNS setup
