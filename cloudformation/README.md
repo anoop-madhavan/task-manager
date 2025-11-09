@@ -252,6 +252,17 @@ aws ecs update-service \
 ./cleanup-all.sh dev us-east-1
 ```
 
+## HTTPS with Custom Domain
+
+To configure HTTPS with your custom domain (e.g., `freeinterestcal.com`):
+
+See **[HTTPS_SETUP.md](HTTPS_SETUP.md)** for complete step-by-step guide including:
+- ACM certificate request and validation
+- HTTPS listener configuration
+- Route 53 DNS setup
+- HTTP to HTTPS redirect
+- Security best practices
+
 ## Cost Estimate
 
 **Dev environment (~$50/month)**:
@@ -259,6 +270,10 @@ aws ecs update-service \
 - ALB: ~$16/month
 - Fargate: ~$15/month (5 tasks × 0.25 vCPU × 0.5 GB)
 - Data transfer: Variable
+
+**With HTTPS + Custom Domain (~$52/month)**:
+- Above costs + Route 53 Hosted Zone: ~$0.50/month
+- ACM Certificate: FREE ✅
 
 **Reduce costs**: Use single AZ, remove NAT Gateway (use public subnets), reduce task count.
 
