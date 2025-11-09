@@ -21,6 +21,9 @@ echo "Version: $VERSION"
 echo -e "\n${YELLOW}Logging in to ECR...${NC}"
 aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
 
+# Change to project root
+cd ..
+
 # Build and push backend-api
 echo -e "\n${YELLOW}Building backend-api...${NC}"
 docker buildx build --platform linux/amd64 -t ${APP_NAME}-backend-api:${VERSION} ./backend-api
