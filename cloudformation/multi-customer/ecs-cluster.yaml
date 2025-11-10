@@ -1,0 +1,73 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECS Cluster for Task Manager
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+
+  AppName:
+    Type: String
+    Default: task-manager
+
+Resources:
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub '${Environment}-${AppName}-cluster'
+      CapacityProviders: [FARGATE, FARGATE_SPOT]
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE
+          Weight: 1
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-${AppName}-cluster'
+
+  BackendAPILogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/${Environment}-${AppName}-backend-api'
+      RetentionInDays: 7
+
+  BackendWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/${Environment}-${AppName}-backend-worker'
+      RetentionInDays: 7
+
+  FrontendLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/${Environment}-${AppName}-frontend'
+      RetentionInDays: 7
+
+Outputs:
+  ClusterName:
+    Value: !Ref ECSCluster
+    Export:
+      Name: !Sub '${Environment}-${AppName}-cluster-name'
+
+  ClusterArn:
+    Value: !GetAtt ECSCluster.Arn
+    Export:
+      Name: !Sub '${Environment}-${AppName}-cluster-arn'
+
+  BackendAPILogGroupName:
+    Value: !Ref BackendAPILogGroup
+    Export:
+      Name: !Sub '${Environment}-${AppName}-backend-api-log-group'
+
+  BackendWorkerLogGroupName:
+    Value: !Ref BackendWorkerLogGroup
+    Export:
+      Name: !Sub '${Environment}-${AppName}-backend-worker-log-group'
+
+  FrontendLogGroupName:
+    Value: !Ref FrontendLogGroup
+    Export:
+      Name: !Sub '${Environment}-${AppName}-frontend-log-group'
+

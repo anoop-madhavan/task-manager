@@ -18,6 +18,16 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'backend-api' });
 });
 
+// Get version info
+app.get('/api/version', (req, res) => {
+  res.json({
+    service: 'backend-api',
+    version: process.env.IMAGE_VERSION || 'latest',
+    buildTime: process.env.BUILD_TIME || new Date().toISOString(),
+    nodeVersion: process.version
+  });
+});
+
 // Get all tasks
 app.get('/api/tasks', (req, res) => {
   res.json(tasks);

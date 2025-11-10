@@ -1,0 +1,142 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECS Services for customer
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Environment name
+
+  AppName:
+    Type: String
+    Default: task-manager
+    Description: Application name
+
+  CustomerName:
+    Type: String
+    Description: Customer identifier (e.g., global, customer1)
+    AllowedPattern: "^[a-z0-9-]+$"
+
+  DesiredCountBackend:
+    Type: Number
+    Default: 2
+    MinValue: 1
+
+  DesiredCountWorker:
+    Type: Number
+    Default: 1
+    MinValue: 1
+
+  DesiredCountFrontend:
+    Type: Number
+    Default: 2
+    MinValue: 1
+
+Resources:
+  BackendAPIService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub '${CustomerName}-backend-api'
+      Cluster:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-cluster-name'
+      TaskDefinition:
+        Fn::ImportValue: !Sub '${CustomerName}-backend-api-task-arn'
+      DesiredCount: !Ref DesiredCountBackend
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - Fn::ImportValue: !Sub '${Environment}-private-subnet-1-id'
+            - Fn::ImportValue: !Sub '${Environment}-private-subnet-2-id'
+          SecurityGroups:
+            - Fn::ImportValue: !Sub '${Environment}-${AppName}-backend-api-sg-id'
+      LoadBalancers:
+        - ContainerName: backend-api
+          ContainerPort: 3001
+          TargetGroupArn:
+            Fn::ImportValue: !Sub '${CustomerName}-backend-api-tg-arn'
+      HealthCheckGracePeriodSeconds: 60
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      Tags:
+        - Key: Name
+          Value: !Sub '${CustomerName}-backend-api-service'
+        - Key: Customer
+          Value: !Ref CustomerName
+
+  BackendWorkerService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub '${CustomerName}-backend-worker'
+      Cluster:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-cluster-name'
+      TaskDefinition:
+        Fn::ImportValue: !Sub '${CustomerName}-backend-worker-task-arn'
+      DesiredCount: !Ref DesiredCountWorker
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - Fn::ImportValue: !Sub '${Environment}-private-subnet-1-id'
+            - Fn::ImportValue: !Sub '${Environment}-private-subnet-2-id'
+          SecurityGroups:
+            - Fn::ImportValue: !Sub '${Environment}-${AppName}-backend-worker-sg-id'
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      Tags:
+        - Key: Name
+          Value: !Sub '${CustomerName}-backend-worker-service'
+        - Key: Customer
+          Value: !Ref CustomerName
+
+  FrontendService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub '${CustomerName}-frontend'
+      Cluster:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-cluster-name'
+      TaskDefinition:
+        Fn::ImportValue: !Sub '${CustomerName}-frontend-task-arn'
+      DesiredCount: !Ref DesiredCountFrontend
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - Fn::ImportValue: !Sub '${Environment}-private-subnet-1-id'
+            - Fn::ImportValue: !Sub '${Environment}-private-subnet-2-id'
+          SecurityGroups:
+            - Fn::ImportValue: !Sub '${Environment}-${AppName}-frontend-sg-id'
+      LoadBalancers:
+        - ContainerName: frontend
+          ContainerPort: 3000
+          TargetGroupArn:
+            Fn::ImportValue: !Sub '${CustomerName}-frontend-tg-arn'
+      HealthCheckGracePeriodSeconds: 60
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      Tags:
+        - Key: Name
+          Value: !Sub '${CustomerName}-frontend-service'
+        - Key: Customer
+          Value: !Ref CustomerName
+
+Outputs:
+  BackendAPIServiceName:
+    Description: Backend API service name
+    Value: !GetAtt BackendAPIService.Name
+
+  BackendWorkerServiceName:
+    Description: Backend Worker service name
+    Value: !GetAtt BackendWorkerService.Name
+
+  FrontendServiceName:
+    Description: Frontend service name
+    Value: !GetAtt FrontendService.Name
+

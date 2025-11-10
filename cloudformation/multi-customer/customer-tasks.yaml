@@ -1,0 +1,170 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECS Task Definitions for customer
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Environment name
+
+  AppName:
+    Type: String
+    Default: task-manager
+    Description: Application name
+
+  CustomerName:
+    Type: String
+    Description: Customer identifier (e.g., global, customer1)
+    AllowedPattern: "^[a-z0-9-]+$"
+
+  CustomerDomain:
+    Type: String
+    Description: Full domain for this customer
+
+  InstanceDisplayName:
+    Type: String
+    Description: Display name shown in UI
+
+  BackendImageURI:
+    Type: String
+    Description: ECR image URI for backend API
+
+  WorkerImageURI:
+    Type: String
+    Description: ECR image URI for backend worker
+
+  FrontendImageURI:
+    Type: String
+    Description: ECR image URI for frontend
+
+Resources:
+  BackendAPITaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${CustomerName}-backend-api'
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-task-execution-role-arn'
+      TaskRoleArn:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-task-role-arn'
+      ContainerDefinitions:
+        - Name: backend-api
+          Image: !Ref BackendImageURI
+          Essential: true
+          PortMappings:
+            - ContainerPort: 3001
+          Environment:
+            - Name: NODE_ENV
+              Value: production
+            - Name: PORT
+              Value: '3001'
+            - Name: INSTANCE_NAME
+              Value: !Ref InstanceDisplayName
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Fn::ImportValue: !Sub '${CustomerName}-backend-api-log-group'
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+      Tags:
+        - Key: Name
+          Value: !Sub '${CustomerName}-backend-api-task'
+        - Key: Customer
+          Value: !Ref CustomerName
+
+  BackendWorkerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${CustomerName}-backend-worker'
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-task-execution-role-arn'
+      TaskRoleArn:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-task-role-arn'
+      ContainerDefinitions:
+        - Name: backend-worker
+          Image: !Ref WorkerImageURI
+          Essential: true
+          Environment:
+            - Name: NODE_ENV
+              Value: production
+            - Name: API_URL
+              Value: !Sub 'https://${CustomerDomain}'
+            - Name: INSTANCE_NAME
+              Value: !Ref InstanceDisplayName
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Fn::ImportValue: !Sub '${CustomerName}-backend-worker-log-group'
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+      Tags:
+        - Key: Name
+          Value: !Sub '${CustomerName}-backend-worker-task'
+        - Key: Customer
+          Value: !Ref CustomerName
+
+  FrontendTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${CustomerName}-frontend'
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-task-execution-role-arn'
+      TaskRoleArn:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-task-role-arn'
+      ContainerDefinitions:
+        - Name: frontend
+          Image: !Ref FrontendImageURI
+          Essential: true
+          PortMappings:
+            - ContainerPort: 3000
+          Environment:
+            - Name: REACT_APP_API_URL
+              Value: !Sub 'https://${CustomerDomain}'
+            - Name: REACT_APP_INSTANCE_NAME
+              Value: !Ref InstanceDisplayName
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Fn::ImportValue: !Sub '${CustomerName}-frontend-log-group'
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+      Tags:
+        - Key: Name
+          Value: !Sub '${CustomerName}-frontend-task'
+        - Key: Customer
+          Value: !Ref CustomerName
+
+Outputs:
+  BackendAPITaskDefinitionArn:
+    Description: Backend API task definition ARN
+    Value: !Ref BackendAPITaskDefinition
+    Export:
+      Name: !Sub '${CustomerName}-backend-api-task-arn'
+
+  BackendWorkerTaskDefinitionArn:
+    Description: Backend Worker task definition ARN
+    Value: !Ref BackendWorkerTaskDefinition
+    Export:
+      Name: !Sub '${CustomerName}-backend-worker-task-arn'
+
+  FrontendTaskDefinitionArn:
+    Description: Frontend task definition ARN
+    Value: !Ref FrontendTaskDefinition
+    Export:
+      Name: !Sub '${CustomerName}-frontend-task-arn'
+

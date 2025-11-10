@@ -1,0 +1,358 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Complete customer deployment with isolated services
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Environment name
+
+  AppName:
+    Type: String
+    Default: task-manager
+    Description: Application name
+
+  CustomerName:
+    Type: String
+    Description: Customer identifier (e.g., global, customer1)
+    AllowedPattern: "^[a-z0-9-]+$"
+
+  CustomerDomain:
+    Type: String
+    Description: Full domain for this customer
+
+  InstanceDisplayName:
+    Type: String
+    Description: Display name shown in UI
+
+  BackendRulePriority:
+    Type: Number
+    Description: Priority for backend API listener rule
+    MinValue: 1
+    MaxValue: 50000
+
+  FrontendRulePriority:
+    Type: Number
+    Description: Priority for frontend listener rule
+    MinValue: 1
+    MaxValue: 50000
+
+  BackendImageURI:
+    Type: String
+    Description: ECR image URI for backend API
+
+  WorkerImageURI:
+    Type: String
+    Description: ECR image URI for backend worker
+
+  FrontendImageURI:
+    Type: String
+    Description: ECR image URI for frontend
+
+  HostedZoneId:
+    Type: String
+    Description: Route 53 Hosted Zone ID
+
+  DesiredCountBackend:
+    Type: Number
+    Default: 2
+    MinValue: 1
+
+  DesiredCountWorker:
+    Type: Number
+    Default: 1
+    MinValue: 1
+
+  DesiredCountFrontend:
+    Type: Number
+    Default: 2
+    MinValue: 1
+
+Resources:
+  # CloudWatch Log Groups
+  BackendAPILogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/${CustomerName}-backend-api'
+      RetentionInDays: 7
+
+  BackendWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/${CustomerName}-backend-worker'
+      RetentionInDays: 7
+
+  FrontendLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/${CustomerName}-frontend'
+      RetentionInDays: 7
+
+  # Target Groups
+  BackendAPITargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${CustomerName}-backend-api-tg'
+      Port: 3001
+      Protocol: HTTP
+      VpcId:
+        Fn::ImportValue: !Sub '${Environment}-vpc-id'
+      TargetType: ip
+      HealthCheckEnabled: true
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: '200'
+
+  FrontendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${CustomerName}-frontend-tg'
+      Port: 3000
+      Protocol: HTTP
+      VpcId:
+        Fn::ImportValue: !Sub '${Environment}-vpc-id'
+      TargetType: ip
+      HealthCheckEnabled: true
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: '200'
+
+  # Listener Rules
+  BackendAPIListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-https-listener-arn'
+      Priority: !Ref BackendRulePriority
+      Conditions:
+        - Field: host-header
+          HostHeaderConfig:
+            Values: [!Ref CustomerDomain]
+        - Field: path-pattern
+          PathPatternConfig:
+            Values: ['/api/*', '/health']
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref BackendAPITargetGroup
+
+  FrontendListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-https-listener-arn'
+      Priority: !Ref FrontendRulePriority
+      Conditions:
+        - Field: host-header
+          HostHeaderConfig:
+            Values: [!Ref CustomerDomain]
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref FrontendTargetGroup
+
+  # Task Definitions (using shared IAM roles)
+  BackendAPITaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${CustomerName}-backend-api'
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-task-execution-role-arn'
+      TaskRoleArn:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-task-role-arn'
+      ContainerDefinitions:
+        - Name: backend-api
+          Image: !Ref BackendImageURI
+          Essential: true
+          PortMappings:
+            - ContainerPort: 3001
+          Environment:
+            - Name: NODE_ENV
+              Value: production
+            - Name: PORT
+              Value: '3001'
+            - Name: INSTANCE_NAME
+              Value: !Ref InstanceDisplayName
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref BackendAPILogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  BackendWorkerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${CustomerName}-backend-worker'
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-task-execution-role-arn'
+      TaskRoleArn:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-task-role-arn'
+      ContainerDefinitions:
+        - Name: backend-worker
+          Image: !Ref WorkerImageURI
+          Essential: true
+          Environment:
+            - Name: NODE_ENV
+              Value: production
+            - Name: API_URL
+              Value: !Sub 'https://${CustomerDomain}'
+            - Name: INSTANCE_NAME
+              Value: !Ref InstanceDisplayName
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref BackendWorkerLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  FrontendTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${CustomerName}-frontend'
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-task-execution-role-arn'
+      TaskRoleArn:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-task-role-arn'
+      ContainerDefinitions:
+        - Name: frontend
+          Image: !Ref FrontendImageURI
+          Essential: true
+          PortMappings:
+            - ContainerPort: 3000
+          Environment:
+            - Name: REACT_APP_API_URL
+              Value: !Sub 'https://${CustomerDomain}'
+            - Name: REACT_APP_INSTANCE_NAME
+              Value: !Ref InstanceDisplayName
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref FrontendLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  # ECS Services
+  BackendAPIService:
+    Type: AWS::ECS::Service
+    DependsOn: BackendAPIListenerRule
+    Properties:
+      ServiceName: !Sub '${CustomerName}-backend-api'
+      Cluster:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-cluster-name'
+      TaskDefinition: !Ref BackendAPITaskDefinition
+      DesiredCount: !Ref DesiredCountBackend
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - Fn::ImportValue: !Sub '${Environment}-private-subnet-1-id'
+            - Fn::ImportValue: !Sub '${Environment}-private-subnet-2-id'
+          SecurityGroups:
+            - Fn::ImportValue: !Sub '${Environment}-${AppName}-backend-api-sg-id'
+      LoadBalancers:
+        - ContainerName: backend-api
+          ContainerPort: 3001
+          TargetGroupArn: !Ref BackendAPITargetGroup
+      HealthCheckGracePeriodSeconds: 60
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+
+  BackendWorkerService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub '${CustomerName}-backend-worker'
+      Cluster:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-cluster-name'
+      TaskDefinition: !Ref BackendWorkerTaskDefinition
+      DesiredCount: !Ref DesiredCountWorker
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - Fn::ImportValue: !Sub '${Environment}-private-subnet-1-id'
+            - Fn::ImportValue: !Sub '${Environment}-private-subnet-2-id'
+          SecurityGroups:
+            - Fn::ImportValue: !Sub '${Environment}-${AppName}-backend-worker-sg-id'
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+
+  FrontendService:
+    Type: AWS::ECS::Service
+    DependsOn: FrontendListenerRule
+    Properties:
+      ServiceName: !Sub '${CustomerName}-frontend'
+      Cluster:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-cluster-name'
+      TaskDefinition: !Ref FrontendTaskDefinition
+      DesiredCount: !Ref DesiredCountFrontend
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - Fn::ImportValue: !Sub '${Environment}-private-subnet-1-id'
+            - Fn::ImportValue: !Sub '${Environment}-private-subnet-2-id'
+          SecurityGroups:
+            - Fn::ImportValue: !Sub '${Environment}-${AppName}-frontend-sg-id'
+      LoadBalancers:
+        - ContainerName: frontend
+          ContainerPort: 3000
+          TargetGroupArn: !Ref FrontendTargetGroup
+      HealthCheckGracePeriodSeconds: 60
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+
+  # Route 53 DNS Record
+  DNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref CustomerDomain
+      Type: A
+      AliasTarget:
+        HostedZoneId:
+          Fn::ImportValue: !Sub '${Environment}-${AppName}-shared-alb-hosted-zone-id'
+        DNSName:
+          Fn::ImportValue: !Sub '${Environment}-${AppName}-shared-alb-dns'
+        EvaluateTargetHealth: true
+
+Outputs:
+  CustomerDomain:
+    Description: Customer domain URL
+    Value: !Sub 'https://${CustomerDomain}'
+
+  BackendAPIServiceName:
+    Description: Backend API service name
+    Value: !GetAtt BackendAPIService.Name
+
+  FrontendServiceName:
+    Description: Frontend service name
+    Value: !GetAtt FrontendService.Name
+

@@ -1,0 +1,51 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Route 53 DNS Record for customer
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Environment name
+
+  AppName:
+    Type: String
+    Default: task-manager
+    Description: Application name
+
+  CustomerName:
+    Type: String
+    Description: Customer identifier (e.g., global, customer1)
+    AllowedPattern: "^[a-z0-9-]+$"
+
+  CustomerDomain:
+    Type: String
+    Description: Full domain for this customer
+
+  HostedZoneId:
+    Type: String
+    Description: Route 53 Hosted Zone ID
+
+Resources:
+  DNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref CustomerDomain
+      Type: A
+      AliasTarget:
+        HostedZoneId:
+          Fn::ImportValue: !Sub '${Environment}-${AppName}-shared-alb-hosted-zone-id'
+        DNSName:
+          Fn::ImportValue: !Sub '${Environment}-${AppName}-shared-alb-dns'
+        EvaluateTargetHealth: true
+
+Outputs:
+  DNSRecordName:
+    Description: DNS record name
+    Value: !Ref DNSRecord
+
+  CustomerURL:
+    Description: Customer URL
+    Value: !Sub 'https://${CustomerDomain}'
+
