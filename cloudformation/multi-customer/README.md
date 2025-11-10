@@ -33,12 +33,12 @@ CloudFormation templates for deploying multiple isolated customer instances with
 
 | File | Description |
 |------|-------------|
-| `vpc-shared.yaml` | VPC with public/private subnets |
-| `security-groups.yaml` | Security groups for ALB and ECS |
-| `ecr-repository.yaml` | ECR repository |
-| `ecs-cluster.yaml` | ECS cluster |
-| `iam-shared.yaml` | Shared IAM roles for all customers |
-| `alb-shared.yaml` | Shared ALB with HTTPS listener |
+| `shared-vpc.yaml` | VPC with public/private subnets |
+| `shared-security-groups.yaml` | Security groups for ALB and ECS |
+| `shared-ecr.yaml` | ECR repository |
+| `shared-ecs-cluster.yaml` | ECS cluster |
+| `shared-iam.yaml` | Shared IAM roles for all customers |
+| `shared-alb.yaml` | Shared ALB with HTTPS listener |
 
 ### Per Customer (Deploy in Order)
 
@@ -158,35 +158,35 @@ echo "Hosted Zone ID: $HOSTED_ZONE_ID"
 # 1. ECR Repository
 aws cloudformation deploy \
   --stack-name ${ENVIRONMENT}-${APP_NAME}-ecr \
-  --template-file ecr-repository.yaml \
+  --template-file shared-ecr.yaml \
   --parameter-overrides Environment=$ENVIRONMENT AppName=$APP_NAME \
   --region $REGION
 
 # 2. VPC (Public/Private subnets, NAT Gateway)
 aws cloudformation deploy \
   --stack-name ${ENVIRONMENT}-vpc \
-  --template-file vpc-shared.yaml \
+  --template-file shared-vpc.yaml \
   --parameter-overrides EnvironmentName=$ENVIRONMENT \
   --region $REGION
 
 # 3. Security Groups (ALB, Backend API, Backend Worker, Frontend)
 aws cloudformation deploy \
   --stack-name ${ENVIRONMENT}-${APP_NAME}-sg \
-  --template-file security-groups.yaml \
+  --template-file shared-security-groups.yaml \
   --parameter-overrides Environment=$ENVIRONMENT AppName=$APP_NAME \
   --region $REGION
 
 # 4. ECS Cluster (Fargate cluster)
 aws cloudformation deploy \
   --stack-name ${ENVIRONMENT}-${APP_NAME}-cluster \
-  --template-file ecs-cluster.yaml \
+  --template-file shared-ecs-cluster.yaml \
   --parameter-overrides Environment=$ENVIRONMENT AppName=$APP_NAME \
   --region $REGION
 
 # 5. Shared IAM Roles (used by all customers)
 aws cloudformation deploy \
   --stack-name ${ENVIRONMENT}-${APP_NAME}-iam \
-  --template-file iam-shared.yaml \
+  --template-file shared-iam.yaml \
   --parameter-overrides Environment=$ENVIRONMENT AppName=$APP_NAME \
   --capabilities CAPABILITY_NAMED_IAM \
   --region $REGION
@@ -194,7 +194,7 @@ aws cloudformation deploy \
 # 6. Shared ALB (with wildcard SSL certificate)
 aws cloudformation deploy \
   --stack-name ${ENVIRONMENT}-${APP_NAME}-shared-alb \
-  --template-file alb-shared.yaml \
+  --template-file shared-alb.yaml \
   --parameter-overrides \
     Environment=$ENVIRONMENT \
     AppName=$APP_NAME \
