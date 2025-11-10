@@ -1,0 +1,79 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ALB Listener Rules for customer (host-based routing)
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Environment name
+
+  AppName:
+    Type: String
+    Default: task-manager
+    Description: Application name
+
+  CustomerName:
+    Type: String
+    Description: Customer identifier (e.g., global, customer1)
+    AllowedPattern: "^[a-z0-9-]+$"
+
+  CustomerDomain:
+    Type: String
+    Description: Full domain for this customer
+
+  BackendRulePriority:
+    Type: Number
+    Description: Priority for backend API listener rule
+    MinValue: 1
+    MaxValue: 50000
+
+  FrontendRulePriority:
+    Type: Number
+    Description: Priority for frontend listener rule
+    MinValue: 1
+    MaxValue: 50000
+
+Resources:
+  BackendAPIListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-https-listener-arn'
+      Priority: !Ref BackendRulePriority
+      Conditions:
+        - Field: host-header
+          HostHeaderConfig:
+            Values: [!Ref CustomerDomain]
+        - Field: path-pattern
+          PathPatternConfig:
+            Values: ['/api/*', '/health']
+      Actions:
+        - Type: forward
+          TargetGroupArn:
+            Fn::ImportValue: !Sub '${CustomerName}-backend-api-tg-arn'
+
+  FrontendListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn:
+        Fn::ImportValue: !Sub '${Environment}-${AppName}-https-listener-arn'
+      Priority: !Ref FrontendRulePriority
+      Conditions:
+        - Field: host-header
+          HostHeaderConfig:
+            Values: [!Ref CustomerDomain]
+      Actions:
+        - Type: forward
+          TargetGroupArn:
+            Fn::ImportValue: !Sub '${CustomerName}-frontend-tg-arn'
+
+Outputs:
+  BackendAPIListenerRuleArn:
+    Description: Backend API listener rule ARN
+    Value: !Ref BackendAPIListenerRule
+
+  FrontendListenerRuleArn:
+    Description: Frontend listener rule ARN
+    Value: !Ref FrontendListenerRule
+

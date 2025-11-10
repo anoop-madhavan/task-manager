@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Target Groups for customer
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Environment name
+
+  CustomerName:
+    Type: String
+    Description: Customer identifier (e.g., global, customer1)
+    AllowedPattern: "^[a-z0-9-]+$"
+
+Resources:
+  BackendAPITargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${CustomerName}-backend-api-tg'
+      Port: 3001
+      Protocol: HTTP
+      VpcId:
+        Fn::ImportValue: !Sub '${Environment}-vpc-id'
+      TargetType: ip
+      HealthCheckEnabled: true
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: '200'
+      Tags:
+        - Key: Name
+          Value: !Sub '${CustomerName}-backend-api-tg'
+        - Key: Customer
+          Value: !Ref CustomerName
+
+  FrontendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${CustomerName}-frontend-tg'
+      Port: 3000
+      Protocol: HTTP
+      VpcId:
+        Fn::ImportValue: !Sub '${Environment}-vpc-id'
+      TargetType: ip
+      HealthCheckEnabled: true
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: '200'
+      Tags:
+        - Key: Name
+          Value: !Sub '${CustomerName}-frontend-tg'
+        - Key: Customer
+          Value: !Ref CustomerName
+
+Outputs:
+  BackendAPITargetGroupArn:
+    Description: Backend API target group ARN
+    Value: !Ref BackendAPITargetGroup
+    Export:
+      Name: !Sub '${CustomerName}-backend-api-tg-arn'
+
+  FrontendTargetGroupArn:
+    Description: Frontend target group ARN
+    Value: !Ref FrontendTargetGroup
+    Export:
+      Name: !Sub '${CustomerName}-frontend-tg-arn'
+

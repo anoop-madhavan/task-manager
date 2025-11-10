@@ -6,6 +6,8 @@ import TaskList from './components/TaskList';
 import Stats from './components/Stats';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const INSTANCE_NAME = process.env.REACT_APP_INSTANCE_NAME || 'Local';
+const IMAGE_VERSION = process.env.REACT_APP_IMAGE_VERSION || 'dev';
 
 function App() {
   const [tasks, setTasks] = useState([]);
@@ -18,6 +20,7 @@ function App() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [backendVersion, setBackendVersion] = useState(null);
 
   // Fetch tasks
   const fetchTasks = async () => {
@@ -84,10 +87,21 @@ function App() {
     }
   };
 
+  // Fetch backend version
+  const fetchBackendVersion = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/version`);
+      setBackendVersion(response.data);
+    } catch (err) {
+      console.error('Error fetching backend version:', err);
+    }
+  };
+
   // Initial fetch
   useEffect(() => {
     fetchTasks();
     fetchStats();
+    fetchBackendVersion();
   }, []);
 
   // Auto-refresh every 5 seconds
@@ -113,6 +127,21 @@ function App() {
       <header className="App-header">
         <h1>📋 Task Manager</h1>
         <p className="subtitle">Simple task management for learning</p>
+        {INSTANCE_NAME && INSTANCE_NAME !== 'Local' && (
+          <div className="instance-badge">{INSTANCE_NAME}</div>
+        )}
+        <div className="version-info">
+          <div className="version-item">
+            <span className="version-label">Frontend:</span>
+            <span className="version-value">{IMAGE_VERSION}</span>
+          </div>
+          {backendVersion && (
+            <div className="version-item">
+              <span className="version-label">Backend:</span>
+              <span className="version-value">{backendVersion.version}</span>
+            </div>
+          )}
+        </div>
       </header>
 
       {error && (

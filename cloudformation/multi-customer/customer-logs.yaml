@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudWatch Log Groups for customer
+
+Parameters:
+  CustomerName:
+    Type: String
+    Description: Customer identifier (e.g., global, customer1)
+    AllowedPattern: "^[a-z0-9-]+$"
+
+Resources:
+  BackendAPILogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/${CustomerName}-backend-api'
+      RetentionInDays: 7
+      Tags:
+        - Key: Name
+          Value: !Sub '${CustomerName}-backend-api-logs'
+        - Key: Customer
+          Value: !Ref CustomerName
+
+  BackendWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/${CustomerName}-backend-worker'
+      RetentionInDays: 7
+      Tags:
+        - Key: Name
+          Value: !Sub '${CustomerName}-backend-worker-logs'
+        - Key: Customer
+          Value: !Ref CustomerName
+
+  FrontendLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/${CustomerName}-frontend'
+      RetentionInDays: 7
+      Tags:
+        - Key: Name
+          Value: !Sub '${CustomerName}-frontend-logs'
+        - Key: Customer
+          Value: !Ref CustomerName
+
+Outputs:
+  BackendAPILogGroupName:
+    Description: Backend API log group name
+    Value: !Ref BackendAPILogGroup
+    Export:
+      Name: !Sub '${CustomerName}-backend-api-log-group'
+
+  BackendWorkerLogGroupName:
+    Description: Backend Worker log group name
+    Value: !Ref BackendWorkerLogGroup
+    Export:
+      Name: !Sub '${CustomerName}-backend-worker-log-group'
+
+  FrontendLogGroupName:
+    Description: Frontend log group name
+    Value: !Ref FrontendLogGroup
+    Export:
+      Name: !Sub '${CustomerName}-frontend-log-group'
+
