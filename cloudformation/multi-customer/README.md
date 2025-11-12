@@ -2,7 +2,20 @@
 
 CloudFormation templates for deploying multiple isolated customer instances with shared infrastructure.
 
-## Quick Start
+## Deployment Options
+
+### Option 1: Fully Automated (CloudFormation)
+Use this README for complete automation via CloudFormation templates.
+
+### Option 2: Learning via GUI (Manual Setup)
+**For learning purposes**, see [MANUAL_GUI_SETUP.md](./MANUAL_GUI_SETUP.md) to:
+- Deploy VPC, ECR, ECS, IAM, Security Groups via CloudFormation
+- Manually create ALB, Task Definitions, Services, etc. via AWS Console GUI
+- **Tags**: `multi-customer-gui`, `aws-console`, `manual-setup`, `learning-guide`
+
+---
+
+## Quick Start (Automated)
 
 1. **Create SSL Certificate** → See [Setup SSL Certificate](#setup-ssl-certificate-one-time)
 2. **Set Environment Variables** → See [Set Environment Variables](#set-environment-variables)
