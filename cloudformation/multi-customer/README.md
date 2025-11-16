@@ -40,35 +40,52 @@ Use this README for complete automation via CloudFormation templates.
   - ECS Services (3) - backend-api (with ALB), worker (no ALB), frontend (with ALB)
   - Route 53 DNS Record
 
-## Files
+## CloudFormation Files
 
-### Shared Infrastructure
+### Shared Infrastructure (Deploy Once - 6 files)
 
-| File | Description |
-|------|-------------|
-| `shared-vpc.yaml` | VPC with public/private subnets |
-| `shared-security-groups.yaml` | Security groups for ALB and ECS |
-| `shared-ecr.yaml` | ECR repository |
-| `shared-ecs-cluster.yaml` | ECS cluster |
-| `shared-iam.yaml` | Shared IAM roles for all customers |
-| `shared-alb.yaml` | Shared ALB with HTTPS listener |
+| # | File | Stack Name | Resources | Dependencies |
+|---|------|------------|-----------|--------------|
+| 1 | `shared-ecr.yaml` | `dev-task-manager-ecr` | ECR Repository | None |
+| 2 | `shared-vpc.yaml` | `dev-vpc` | VPC, Subnets, NAT, IGW, Route Tables | None |
+| 3 | `shared-security-groups.yaml` | `dev-task-manager-sg` | 4 Security Groups (ALB, Backend API, Worker, Frontend) | VPC |
+| 4 | `shared-ecs-cluster.yaml` | `dev-task-manager-cluster` | ECS Cluster, 3 CloudWatch Log Groups | None |
+| 5 | `shared-iam.yaml` | `dev-task-manager-iam` | Task Execution Role, Task Role | None |
+| 6 | `shared-alb.yaml` | `dev-task-manager-shared-alb` | ALB, HTTP/HTTPS Listeners, Default Target Group | VPC, Security Groups, SSL Cert |
 
-### Per Customer (Deploy in Order)
+**Total Shared Cost**: ~$81/month
 
-| File | Description |
-|------|-------------|
-| `customer-logs.yaml` | CloudWatch log groups (3) |
-| `customer-target-groups.yaml` | ALB target groups (2) - backend-api:3001, frontend:3000 |
-| `customer-listener-rules.yaml` | ALB listener rules (2) - routes /api/* and / |
-| `customer-tasks.yaml` | Task definitions (3) - backend-api:3001, worker (no port), frontend:3000 |
-| `customer-services.yaml` | ECS services (3) - 2 with ALB, 1 without |
-| `customer-dns.yaml` | Route 53 DNS record |
+### Per Customer Resources (Deploy for Each - 6 files)
 
-### Combined (Alternative)
+| # | File | Stack Name | Resources | Dependencies |
+|---|------|------------|-----------|--------------|
+| 1 | `customer-logs.yaml` | `dev-{customer}-logs` | 3 CloudWatch Log Groups | None |
+| 2 | `customer-target-groups.yaml` | `dev-{customer}-target-groups` | 2 Target Groups (Backend API, Frontend) | VPC |
+| 3 | `customer-listener-rules.yaml` | `dev-{customer}-listener-rules` | 2 ALB Listener Rules (Backend, Frontend) | Shared ALB, Target Groups |
+| 4 | `customer-tasks.yaml` | `dev-{customer}-tasks` | 3 Task Definitions (Backend API, Worker, Frontend) | Shared IAM, Logs, ECR Images |
+| 5 | `customer-services.yaml` | `dev-{customer}-services` | 3 ECS Services (Backend API, Worker, Frontend) | Tasks, Target Groups, ECS Cluster |
+| 6 | `customer-dns.yaml` | `dev-{customer}-dns` | 1 Route 53 A Record | Shared ALB |
 
-| File | Description |
-|------|-------------|
-| `customer-stack.yaml` | All customer resources in one file |
+**Per Customer Cost**: ~$38/month
+
+### Alternative: Combined Customer Stack
+
+| File | Stack Name | Description |
+|------|------------|-------------|
+| `customer-stack.yaml` | `dev-{customer}-stack` | All 6 customer resources in one file (not recommended for production) |
+
+---
+
+## Stack Naming Convention
+
+```
+Shared:     {environment}-{app-name}-{resource}
+            Example: dev-task-manager-ecr
+
+Per Customer: {environment}-{customer-name}-{resource}
+              Example: dev-global-logs
+                       dev-customer1-services
+```
 
 ## Prerequisites
 
@@ -219,7 +236,7 @@ aws cloudformation deploy \
 
 ```bash
 # Build and push images (required before deploying customers)
-cd .. && ./build-and-push.sh latest $REGION && cd multi-customer
+cd ../.. && ./build-and-push-versioned.sh latest $REGION && cd cloudformation/multi-customer
 ```
 
 ### Step 3: Deploy Global Customer (freeinterestcal.com)
@@ -512,22 +529,111 @@ aws cloudformation delete-stack --stack-name ${ENVIRONMENT}-${APP_NAME}-vpc --re
 
 ## Deployment Order & Dependencies
 
-```
-Shared Infrastructure (deploy once):
-  1. ECR Repository
-  2. VPC
-  3. Security Groups
-  4. ECS Cluster
-  5. Shared IAM Roles (used by all customers)
-  6. Shared ALB
+### Complete Deployment Flow
 
-Per Customer (deploy for each):
-  1. Logs          ← No dependencies
-  2. Target Groups ← Needs: VPC
-  3. Listener Rules ← Needs: Target Groups, Shared ALB
-  4. Task Definitions ← Needs: Shared IAM Roles, Logs
-  5. ECS Services  ← Needs: Task Definitions, Target Groups
-  6. DNS Record    ← Needs: Shared ALB
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 1: SHARED INFRASTRUCTURE (Deploy Once)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. shared-ecr.yaml
+   Stack: dev-task-manager-ecr
+   └─ ECR Repository
+
+2. shared-vpc.yaml
+   Stack: dev-vpc
+   └─ VPC, Subnets, NAT, IGW, Route Tables
+
+3. shared-security-groups.yaml (depends on: VPC)
+   Stack: dev-task-manager-sg
+   └─ 4 Security Groups
+
+4. shared-ecs-cluster.yaml
+   Stack: dev-task-manager-cluster
+   └─ ECS Cluster + Log Groups
+
+5. shared-iam.yaml
+   Stack: dev-task-manager-iam
+   └─ Task Execution Role, Task Role
+
+6. shared-alb.yaml (depends on: VPC, Security Groups, SSL Cert)
+   Stack: dev-task-manager-shared-alb
+   └─ ALB + HTTP/HTTPS Listeners
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 2: BUILD DOCKER IMAGES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+build-and-push-versioned.sh
+└─ Builds and pushes 3 images to ECR
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 3: PER-CUSTOMER RESOURCES (Repeat for Each Customer)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. customer-logs.yaml
+   Stack: dev-{customer}-logs
+   └─ 3 CloudWatch Log Groups
+
+2. customer-target-groups.yaml (depends on: VPC)
+   Stack: dev-{customer}-target-groups
+   └─ 2 Target Groups (Backend API, Frontend)
+
+3. customer-listener-rules.yaml (depends on: ALB, Target Groups)
+   Stack: dev-{customer}-listener-rules
+   └─ 2 ALB Listener Rules (Priority-based routing)
+
+4. customer-tasks.yaml (depends on: IAM, Logs, ECR Images)
+   Stack: dev-{customer}-tasks
+   └─ 3 Task Definitions (Backend API, Worker, Frontend)
+
+5. customer-services.yaml (depends on: Tasks, Target Groups)
+   Stack: dev-{customer}-services
+   └─ 3 ECS Services (Backend API, Worker, Frontend)
+
+6. customer-dns.yaml (depends on: ALB)
+   Stack: dev-{customer}-dns
+   └─ 1 Route 53 A Record
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### Dependency Graph
+
+```
+shared-ecr.yaml ────────────────────────────┐
+                                            │
+shared-vpc.yaml ────────┬───────────────────┤
+                        │                   │
+                        ├─→ shared-security-groups.yaml
+                        │                   │
+shared-ecs-cluster.yaml │                   │
+                        │                   │
+shared-iam.yaml ────────┼───────────────────┤
+                        │                   │
+                        └─→ shared-alb.yaml │
+                                            │
+                                            ↓
+                        ┌─── Build Docker Images ───┐
+                        │                           │
+                        ↓                           ↓
+              customer-logs.yaml          customer-target-groups.yaml
+                        │                           │
+                        │         ┌─────────────────┤
+                        │         │                 │
+                        │         ↓                 │
+                        │  customer-listener-rules.yaml
+                        │         │                 │
+                        └─────────┼─────────────────┤
+                                  ↓                 │
+                          customer-tasks.yaml       │
+                                  │                 │
+                                  └─────────────────┤
+                                                    ↓
+                                        customer-services.yaml
+                                                    │
+                                                    ↓
+                                            customer-dns.yaml
 ```
 
 ## Priority Allocation
