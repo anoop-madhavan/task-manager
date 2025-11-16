@@ -178,55 +178,184 @@ Now we'll create the remaining resources manually via the AWS Console.
 
 ## A. Create Application Load Balancer (Shared - Once)
 
-### 1. Navigate to EC2 → Load Balancers
+> **Note**: You can create the ALB in two ways - with HTTPS from the start (recommended) or HTTP-only first (simpler for learning). Both approaches are valid.
+
+---
+
+### Approach 1: ALB with HTTP Only (Simpler - Add HTTPS Later)
+
+This approach creates the ALB without requiring the SSL certificate initially. You'll add HTTPS later.
+
+#### 1. Navigate to EC2 → Load Balancers
 - Go to **EC2 Console** → **Load Balancers** (left sidebar)
 - Click **Create Load Balancer**
 
-### 2. Choose Load Balancer Type
+#### 2. Choose Load Balancer Type
 - Select **Application Load Balancer**
 - Click **Create**
 
-### 3. Basic Configuration
+#### 3. Basic Configuration
 - **Name**: `dev-task-manager-shared-alb`
 - **Scheme**: Internet-facing
 - **IP address type**: IPv4
 
-### 4. Network Mapping
+#### 4. Network Mapping
 - **VPC**: Select `dev-task-manager-vpc`
 - **Mappings**: Select both availability zones
   - **Subnet 1**: `dev-public-subnet-az1`
   - **Subnet 2**: `dev-public-subnet-az2`
 
-### 5. Security Groups
+#### 5. Security Groups
 - Remove default security group
 - Select: `dev-task-manager-alb-sg`
 
-### 6. Listeners and Routing
+#### 6. Listeners and Routing
 
-#### HTTP Listener (Port 80):
+**HTTP Listener (Port 80):**
 - **Protocol**: HTTP
 - **Port**: 80
-- **Default action**: Create a redirect
+- **Default action**: Redirect to URL
+  - Select **Redirect to URL**
   - **Protocol**: HTTPS
   - **Port**: 443
   - **Status code**: 301 - Permanently moved
 
-#### HTTPS Listener (Port 443):
+> **Important**: When you select "Redirect", you do NOT need to select a target group! The redirect action sends traffic directly to HTTPS without touching any backend.
+
+#### 7. Create Load Balancer
+- Click **Create load balancer**
+- Wait 3-5 minutes for provisioning
+- **Copy the ALB DNS name** (e.g., `dev-task-manager-shared-alb-123456789.us-east-1.elb.amazonaws.com`)
+
+#### 8. Add HTTPS Listener (After SSL Certificate is Ready)
+
+Once you have your SSL certificate validated:
+
+1. Go to **EC2** → **Load Balancers**
+2. Select `dev-task-manager-shared-alb`
+3. Click **Listeners** tab
+4. Click **Add listener**
+5. Configure:
+   - **Protocol**: HTTPS
+   - **Port**: 443
+   - **Default action**: Return fixed response
+     - **Response code**: 404
+     - **Content type**: text/plain
+     - **Response body**: `Instance not found. Please check your URL.`
+   - **Secure listener settings**:
+     - **Security policy**: ELBSecurityPolicy-TLS-1-2-2017-01
+     - **Default SSL/TLS certificate**: 
+       - From ACM
+       - Select: `*.freeinterestcal.com`
+6. Click **Add**
+
+**Alternative via CLI:**
+```bash
+# Get certificate ARN
+export WILDCARD_CERT_ARN=$(aws acm list-certificates \
+  --region us-east-1 \
+  --query 'CertificateSummaryList[?DomainName==`*.freeinterestcal.com`].CertificateArn' \
+  --output text)
+
+# Add HTTPS listener
+aws elbv2 create-listener \
+  --load-balancer-arn $(aws elbv2 describe-load-balancers \
+    --names dev-task-manager-shared-alb \
+    --query 'LoadBalancers[0].LoadBalancerArn' \
+    --output text) \
+  --protocol HTTPS \
+  --port 443 \
+  --certificates CertificateArn=$WILDCARD_CERT_ARN \
+  --ssl-policy ELBSecurityPolicy-TLS-1-2-2017-01 \
+  --default-actions Type=fixed-response,FixedResponseConfig="{StatusCode=404,ContentType=text/plain,MessageBody='Instance not found. Please check your URL.'}" \
+  --region us-east-1
+```
+
+---
+
+### Approach 2: ALB with HTTPS from Start (Production-Ready)
+
+This approach requires the SSL certificate to be ready before creating the ALB.
+
+#### Prerequisites:
+- ✅ SSL Certificate validated in ACM
+- ✅ Certificate ARN copied
+
+#### 1-5. Same as Approach 1 (Navigate, Choose Type, Basic Config, Network, Security Groups)
+
+#### 6. Listeners and Routing
+
+**HTTP Listener (Port 80):**
+- **Protocol**: HTTP
+- **Port**: 80
+- **Default action**: Redirect to URL
+  - Select **Redirect to URL**
+  - **Protocol**: HTTPS
+  - **Port**: 443
+  - **Status code**: 301 - Permanently moved
+
+**HTTPS Listener (Port 443):**
 - Click **Add listener**
 - **Protocol**: HTTPS
 - **Port**: 443
 - **Default action**: Return fixed response
+  - Select **Return fixed response**
   - **Response code**: 404
   - **Content type**: text/plain
   - **Response body**: `Instance not found. Please check your URL.`
 - **Secure listener settings**:
   - **Security policy**: ELBSecurityPolicy-TLS-1-2-2017-01
-  - **Default SSL/TLS certificate**: Select your wildcard certificate (`*.freeinterestcal.com`)
+  - **Default SSL/TLS certificate**: 
+    - From ACM
+    - Select: `*.freeinterestcal.com`
 
-### 7. Create Load Balancer
+> **Important**: Both listeners use actions (redirect/fixed-response) that do NOT require target groups!
+
+#### 7. Create Load Balancer
 - Click **Create load balancer**
 - Wait 3-5 minutes for provisioning
-- **Copy the ALB DNS name** (e.g., `dev-task-manager-shared-alb-123456789.us-east-1.elb.amazonaws.com`)
+- **Copy the ALB DNS name**
+
+---
+
+### Verify ALB Creation
+
+```bash
+# Check ALB status
+aws elbv2 describe-load-balancers \
+  --names dev-task-manager-shared-alb \
+  --region us-east-1
+
+# Check listeners
+aws elbv2 describe-listeners \
+  --load-balancer-arn $(aws elbv2 describe-load-balancers \
+    --names dev-task-manager-shared-alb \
+    --query 'LoadBalancers[0].LoadBalancerArn' \
+    --output text) \
+  --region us-east-1
+
+# Get ALB DNS name
+aws elbv2 describe-load-balancers \
+  --names dev-task-manager-shared-alb \
+  --query 'LoadBalancers[0].DNSName' \
+  --output text \
+  --region us-east-1
+```
+
+### What You Created:
+- ✅ Application Load Balancer: `dev-task-manager-shared-alb`
+- ✅ HTTP Listener (80) → Redirects to HTTPS (NO target group needed)
+- ✅ HTTPS Listener (443) → Returns 404 by default (NO target group needed)
+- ✅ SSL Certificate attached (if using Approach 2)
+- ✅ Deployed in public subnets across 2 AZs
+- ✅ **NO target groups created** (they'll be created per customer later)
+
+### Key Insights:
+- 🎯 **Redirect actions don't need target groups**
+- 🎯 **Fixed-response actions don't need target groups**
+- 🎯 **SSL certificate is only needed for HTTPS listener**
+- 🎯 **You can create ALB first, add HTTPS later** (Approach 1)
+- 🎯 **Target groups are created per customer, not during ALB setup**
 
 ---
 
