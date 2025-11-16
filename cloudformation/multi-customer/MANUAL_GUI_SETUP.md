@@ -451,33 +451,98 @@ aws elbv2 describe-load-balancers \
 4. Select the **HTTPS:443** listener
 5. Click **Manage rules**
 6. Click **Add rule** (+ icon at top)
-7. **Add condition**:
+
+7. **Add conditions** (you need TWO conditions):
+   
+   **Condition 1 - Host Header:**
+   - Click **Add condition**
    - **Rule condition type**: Host header
    - **Host header**: `freeinterestcal.com`
+   
+   **Condition 2 - Path Pattern:**
+   - Click **Add condition** (again)
+   - **Rule condition type**: Path
+   - **Path patterns**: Enter TWO patterns:
+     - `/api/*`
+     - `/health`
+   - (Both patterns in the same condition, separated by comma or on separate lines)
+
 8. Click **Next**
+
 9. **Add action**:
    - **Routing action**: Forward to target group
    - **Target group**: `global-backend-api-tg`
+
 10. Click **Next**
+
 11. **Rule priority**: 10
+
 12. **Rule name**: `global-backend-api`
+
 13. Click **Next** → **Create**
+
+> **Important**: The backend rule matches requests with BOTH conditions:
+> - Host = `freeinterestcal.com` AND
+> - Path = `/api/*` OR `/health`
 
 #### Frontend Rule (Priority 11):
 1. Click **Add rule** again
+
 2. **Add condition**:
+   - Click **Add condition**
    - **Rule condition type**: Host header
    - **Host header**: `freeinterestcal.com`
+   - (No path pattern - this will match ALL paths)
+
 3. Click **Next**
+
 4. **Add action**:
    - **Routing action**: Forward to target group
    - **Target group**: `global-frontend-tg`
+
 5. Click **Next**
+
 6. **Rule priority**: 11
+
 7. **Rule name**: `global-frontend`
+
 8. Click **Next** → **Create**
 
-**Note**: The backend rule (priority 10) will match `/api/*` requests, and frontend rule (priority 11) will match all other requests.
+> **Important**: The frontend rule only has host condition, so it matches ALL paths for `freeinterestcal.com` that weren't already matched by higher priority rules.
+
+---
+
+### Understanding the Rules:
+
+**Request Flow:**
+```
+Request: https://freeinterestcal.com/api/tasks
+
+Priority 10 (Backend):
+  ✅ Host: freeinterestcal.com (matches)
+  ✅ Path: /api/tasks (matches /api/*)
+  → Forward to global-backend-api-tg
+
+Priority 11: Never checked (already matched)
+```
+
+```
+Request: https://freeinterestcal.com/about
+
+Priority 10 (Backend):
+  ✅ Host: freeinterestcal.com (matches)
+  ❌ Path: /about (doesn't match /api/* or /health)
+  → Continue to next rule
+
+Priority 11 (Frontend):
+  ✅ Host: freeinterestcal.com (matches)
+  ✅ Path: any (no path restriction)
+  → Forward to global-frontend-tg
+```
+
+**Why Priority Matters:**
+- Priority 10 (more specific: host + path) must come BEFORE
+- Priority 11 (less specific: host only) acts as catch-all
 
 ---
 
